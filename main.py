@@ -2,6 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, SessionLocal
 import models,schemas
+from auth import create_token, verify_token
+
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -15,6 +17,11 @@ async def get_db():
     finally: 
         db.close()
 
+# login API 
+@app.post("/login")
+def login():
+    
+    return {"access_token": create_token({"user": "admin"}), "token_type": "bearer"}
 
 #home
 @app.get("/")
@@ -22,9 +29,9 @@ def read_root():
     return {"message": "Hello, World!"}
 
 
-# Create Blog
+# Create Blog (protected)
 @app.post("/blogs", response_model= schemas.BlogResponse)
-def create_blog(blog: schemas.BlogCreate, db: Session = Depends(get_db)):
+def create_blog(blog: schemas.BlogCreate, db: Session = Depends(get_db), user = Depends(verify_token)):
     new = models.Blog(
         title= blog.title,
         content= blog.content 
@@ -35,7 +42,7 @@ def create_blog(blog: schemas.BlogCreate, db: Session = Depends(get_db)):
 
     return new
 
-# Read ALL Blogs
+# Read ALL Blogs 
 @app.get("/blogs", response_model= list[schemas.BlogResponse])
 def get_all_blog(db : Session = Depends(get_db)):
     return db.query(models.Blog).all()
@@ -48,8 +55,9 @@ def get_blogs(id : int, db : Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Not Found")
     return  blog
 
+# Update Blog by ID (protected)
 @app.put("/blogs/{id}", response_model= schemas.BlogResponse)
-def update(id: int,new: schemas.BlogCreate, db :Session = Depends(get_db)):
+def update(id: int,new: schemas.BlogCreate, db :Session = Depends(get_db),user = Depends(verify_token)):
     blog = db.query(models.Blog).filter(models.Blog.id == id).first()
     if not blog:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -59,9 +67,9 @@ def update(id: int,new: schemas.BlogCreate, db :Session = Depends(get_db)):
     db.commit()
     return blog
 
-
+# Delete Blog by ID (protected)
 @app.delete("/blogs/{id}")
-def delete_blog(id: int, db :Session =Depends(get_db)):
+def delete_blog(id: int, db :Session =Depends(get_db),user = Depends(verify_token)):
     blog = db.query(models.Blog).filter(models.Blog.id == id).first()
     if not blog:
         raise HTTPException(status_code=404, detail="Not Found")
